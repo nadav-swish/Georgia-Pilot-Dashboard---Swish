@@ -268,6 +268,44 @@ function renderImmediate(rows){
   return rows.map(r=>parseInt(r['Age'])).filter(x=>!isNaN(x));
 }
 
+// ── RENDER PILOT FROM STATIC ARRAY ──────────────────────────────────────────
+function renderPilotStatic(){
+  const rows = P.map(r=>({
+    'Nickname': r[0], 'Age': r[1],
+    'S1 - How fun was it to use Swish?': r[2],
+    'S1 - How easy was Swish to use?': r[3],
+    'S1 - How much did Swish make you want to shoot more?': r[4],
+    'S1 - Would you use Swish again?': r[5],
+    'S1 - Would you recommend Swish to a friend?': r[6],
+    'S2 - Did Swish make the court feel more exciting?': r[7],
+    'S2 - Did you watch other players?': r[8],
+    'S2 - Did watching others make you want to try?': r[9],
+    'S2 - Did Swish feel more exciting than normal tournament?': r[10],
+    'S3 - Did Swish make you want to play again?': r[11],
+    'S3 - How much did leaderboard make you play more?': r[12],
+    'S3 - How much did challenges make you return?': r[13],
+    'S3 - Did you ever think one more try?': r[14],
+    'S3 - Would you want new challenges every week?': r[15],
+    'S4 - Did you look at results after shooting?': r[16],
+    'S4 - How easy was it to understand results?': r[17],
+    'S4 - How useful were the results?': r[18],
+    'S4 - Did results make you want to improve?': r[19],
+    'S5 - Did you open Swish after leaving court?': r[20],
+    'S5 - Did you look at player card later?': r[21],
+    'S5 - How proud did you feel seeing your stats?': r[22],
+    'S5 - Did you show results to someone?': r[23],
+    'S5 - Would you want Swish card to keep growing?': r[24],
+    'S6 - Did you try with headphones?': r[25],
+    'S6 - How helpful was voice feedback?': r[26],
+    'S6 - Did feedback make you keep shooting?': r[27],
+    'S6 - Did the feedback interrupt you?': r[28],
+    'S6 - Would you like more voice feedback?': r[29],
+    'S6 - Was voice easy to understand?': r[30],
+    'S6 - Would you use headphones again?': r[31],
+  }));
+  return renderPilot(rows);
+}
+
 // ── RENDER PILOT QUESTIONNAIRE ───────────────────────────────────────────────
 function renderPilot(rows){
   rows = rows.filter(r=>!INTERNAL.includes((r['Nickname']||'').trim()));
@@ -369,37 +407,60 @@ function renderAgeChart(immAges, pilotAges){
   });
 }
 
+// ── STATIC FALLBACK DATA ─────────────────────────────────────────────────────
+const STATIC_IMM = [
+  {Timestamp:'2026-06-10T14:27:52.824Z',Nickname:'Iliakantaria',Age:'16',Q1_Enjoyment:'5',Q2_PlayAgain:'Yes',Q3_IndependentPlay:'Yes',Q4_LeaderboardMotivation:'Yes',Q5_FreeTimePlay:'Yes',Q6_BetterPlayer:'Yes','comment':'It would be nice if it gave us the pass itself'},
+  {Timestamp:'2026-06-10T14:43:37.290Z',Nickname:'Guka',Age:'17',Q1_Enjoyment:'4',Q2_PlayAgain:'Yes',Q3_IndependentPlay:'Yes',Q4_LeaderboardMotivation:'Yes',Q5_FreeTimePlay:'Yes',Q6_BetterPlayer:'Yes','comment':'Face recognition technology that can count every players makes, losses, field goals'},
+  {Timestamp:'2026-06-10T15:35:40.440Z',Nickname:'Giorgi',Age:'16',Q1_Enjoyment:'5',Q2_PlayAgain:'Yes',Q3_IndependentPlay:'Yes',Q4_LeaderboardMotivation:'Yes',Q5_FreeTimePlay:'Yes',Q6_BetterPlayer:'Yes','comment':''},
+  {Timestamp:'2026-06-10T15:50:01.156Z',Nickname:'Nika',Age:'16',Q1_Enjoyment:'5',Q2_PlayAgain:'Yes',Q3_IndependentPlay:'Yes',Q4_LeaderboardMotivation:'Yes',Q5_FreeTimePlay:'Yes',Q6_BetterPlayer:'Yes','comment':''},
+  {Timestamp:'2026-06-11T13:51:44.932Z',Nickname:'Rezi',Age:'17',Q1_Enjoyment:'4',Q2_PlayAgain:'Yes',Q3_IndependentPlay:'Yes',Q4_LeaderboardMotivation:'Yes',Q5_FreeTimePlay:'Yes',Q6_BetterPlayer:'Yes','comment':''},
+  {Timestamp:'2026-06-12T10:34:49.339Z',Nickname:'Tuta',Age:'9',Q1_Enjoyment:'5',Q2_PlayAgain:'Yes',Q3_IndependentPlay:'Yes',Q4_LeaderboardMotivation:'Yes',Q5_FreeTimePlay:'Yes',Q6_BetterPlayer:'Yes','comment':''},
+  {Timestamp:'2026-06-15T13:29:24.001Z',Nickname:'Oto',Age:'',Q1_Enjoyment:'5',Q2_PlayAgain:'Yes',Q3_IndependentPlay:'Yes',Q4_LeaderboardMotivation:'Yes',Q5_FreeTimePlay:'Yes',Q6_BetterPlayer:'Yes','comment':''},
+  {Timestamp:'2026-06-19T15:36:09.832Z',Nickname:'Test',Age:'17',Q1_Enjoyment:'4',Q2_PlayAgain:'Yes',Q3_IndependentPlay:'Yes',Q4_LeaderboardMotivation:'Yes',Q5_FreeTimePlay:'Yes',Q6_BetterPlayer:'Yes','comment':''},
+];
+
 // ── MAIN LOAD ────────────────────────────────────────────────────────────────
 async function loadAll(){
-  setStatus('Fetching latest data...','loading');
-  let immAges=[], pilotAges=[];
+  // Always render static data first so dashboard is never blank
+  let immAges = renderImmediate(STATIC_IMM);
+  let pilotAges = renderPilotStatic();
+  renderAgeChart(immAges, pilotAges);
+  setStatus('Showing last known data · Attempting live update...','loading');
+
+  // Then try live fetch and update if successful
   let immOk=false, pilotOk=false;
+  try{
+    const res = await fetch(IMM_URL);
+    const csv = await res.text();
+    if(csv.includes('Timestamp') || csv.includes('Nickname')){
+      const rows = parseCSV(csv);
+      if(rows.length > 0){
+        immAges = renderImmediate(rows);
+        immOk = true;
+      }
+    }
+  }catch(e){ console.warn('Live immediate fetch failed, using static data'); }
 
   try{
-    const r = await fetch(IMM_URL);
-    const csv = await r.text();
-    const rows = parseCSV(csv);
-    immAges = renderImmediate(rows);
-    immOk = true;
-  }catch(e){ console.error('Immediate fetch failed:',e); }
-
-  try{
-    const r = await fetch(PILOT_URL);
-    const csv = await r.text();
-    const rows = parseCSV(csv);
-    pilotAges = renderPilot(rows);
-    pilotOk = true;
-  }catch(e){ console.error('Pilot fetch failed:',e); }
+    const res = await fetch(PILOT_URL);
+    const csv = await res.text();
+    if(csv.length > 100){
+      const rows = parseCSV(csv);
+      if(rows.length > 0){
+        pilotAges = renderPilot(rows);
+        pilotOk = true;
+      }
+    }
+  }catch(e){ console.warn('Live pilot fetch failed, using static data'); }
 
   renderAgeChart(immAges, pilotAges);
-
   const now = new Date().toLocaleTimeString();
   if(immOk && pilotOk){
-    setStatus(`Live data · Both forms updated · Last refreshed: ${now}`,'ok');
+    setStatus(`Live data from Google Sheets · Last refreshed: ${now}`,'ok');
   } else if(immOk || pilotOk){
-    setStatus(`Partial update · One form unavailable · Last refreshed: ${now}`,'loading');
+    setStatus(`Partial live data · One form using cached data · ${now}`,'loading');
   } else {
-    setStatus('Could not fetch live data — check your connection or CORS proxy','error');
+    setStatus(`Showing data as of June 19, 2026 · Live fetch unavailable · ${now}`,'ok');
   }
 }
 
