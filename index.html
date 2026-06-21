@@ -185,9 +185,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script>
 // ── LIVE DATA CONFIG ────────────────────────────────────────────────────────
-const PROXY = 'https://corsproxy.io/?';
-const IMM_URL  = PROXY + encodeURIComponent('https://docs.google.com/spreadsheets/d/e/2PACX-1vThSE_B589B5yUPMxZgwBZVIo43h7321rhOExyrrQAFMTzvfY3BPmvSb9dsUj5HD3d0vDHFNFyDIA12/pub?output=csv');
-const PILOT_URL = PROXY + encodeURIComponent('https://docs.google.com/spreadsheets/d/e/2PACX-1vTyVS9qQ9N1lv91SWHe81pg6sEYQN8t_uy2u7MvM_OkX7OYahYOwzccXVDdxXP8QW5hg5BdvPK0C_HQ/pub?output=csv');
+const IMM_BASE   = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vThSE_B589B5yUPMxZgwBZVIo43h7321rhOExyrrQAFMTzvfY3BPmvSb9dsUj5HD3d0vDHFNFyDIA12/pub?output=csv';
+const PILOT_BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTyVS9qQ9N1lv91SWHe81pg6sEYQN8t_uy2u7MvM_OkX7OYahYOwzccXVDdxXP8QW5hg5BdvPK0C_HQ/pub?output=csv';
+
+const PROXIES = [
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  url => `https://thingproxy.freeboard.io/fetch/${url}`,
+];
+
+async function fetchWithFallback(baseUrl){
+  for(const proxy of PROXIES){
+    try{
+      const res = await fetch(proxy(baseUrl), {signal: AbortSignal.timeout(6000)});
+      if(res.ok){
+        const text = await res.text();
+        if(text.length > 50) return text;
+      }
+    } catch(e){ /* try next proxy */ }
+  }
+  return null;
+}
 
 const INTERNAL = ['Yannai','LeilaK2001'];
 
@@ -430,9 +448,8 @@ async function loadAll(){
   // Then try live fetch and update if successful
   let immOk=false, pilotOk=false;
   try{
-    const res = await fetch(IMM_URL);
-    const csv = await res.text();
-    if(csv.includes('Timestamp') || csv.includes('Nickname')){
+    const csv = await fetchWithFallback(IMM_BASE);
+    if(csv && (csv.includes('Timestamp') || csv.includes('Nickname'))){
       const rows = parseCSV(csv);
       if(rows.length > 0){
         immAges = renderImmediate(rows);
@@ -442,9 +459,8 @@ async function loadAll(){
   }catch(e){ console.warn('Live immediate fetch failed, using static data'); }
 
   try{
-    const res = await fetch(PILOT_URL);
-    const csv = await res.text();
-    if(csv.length > 100){
+    const csv = await fetchWithFallback(PILOT_BASE);
+    if(csv && csv.length > 100){
       const rows = parseCSV(csv);
       if(rows.length > 0){
         pilotAges = renderPilot(rows);
